@@ -365,14 +365,14 @@ public class ServerMap implements Runnable {
 
 			/// TREES ------------------------------------
 
-			x = 10;
+			x = 50;
 			scale = 1.1;
 			int treeHeight = (int) (350 * scale);
 			int treeWidth = (int) (150 * scale);
 
 			// spawnar in massa träd längs marken
 			for (int i = 0; i < 20; i++) {
-				TreeSpawn spawner = new TreeSpawn(x, groundLevel - treeHeight, treeWidth, treeHeight, 20000, 50);
+				TreeSpawn spawner = new TreeSpawn(x, groundLevel - treeHeight, treeWidth, treeHeight, 10000, 100);
 				treeSpawns.add(spawner);
 				x += 1000;
 			}

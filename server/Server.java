@@ -6,7 +6,6 @@
 
 package server;
 
-
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
@@ -21,7 +20,10 @@ public class Server {
 	public static ArrayList<Integer> disconnectedPlayers = new ArrayList<>(); // håller nummer över de spelare som har disconnectat
 	public static ArrayList<Integer> allPlayers = new ArrayList<>(); // håller nummer över de spelare som är och har varit anslutna
 	static ArrayList<Integer> activePlayers = new ArrayList<>(); // över nummer över de spelare som är anslutna just nu
+
 	public static ArrayList<ServerReturn> SRS = new ArrayList<>(); // hålle ServerReturn instanserna på de spelare som är anslutna
+
+	public static ArrayList<Team> teams = new ArrayList<>();
 
 	// public static ArrayList<Socket> ConnectionArray = new ArrayList<>(); // håller socketen på de spelare som är anslutna
 
@@ -40,6 +42,7 @@ public class Server {
 			ServerFrame.appendConsole("Server is now running");
 
 			serverMap = new ServerMap();
+			initTeams();
 
 			// server kollar hela tiden om någon ny klient försöker ansluta
 			while (true) {
@@ -58,10 +61,8 @@ public class Server {
 		Socket TEMP_SOCK = SOCK;
 		int newPlayerNumber = 0;
 		try {
-		newPlayerNumber = playersOnline; // newPlayerNumber är det spelarnummer som den nya spelaren kommer få
+			newPlayerNumber = playersOnline; // newPlayerNumber är det spelarnummer som den nya spelaren kommer få
 			allPlayers.add(newPlayerNumber); // lägger till spelaren i listan över alla spelare
-
-			IPadress.add(TEMP_SOCK.getLocalAddress().getHostName()); // hämtar IP-adressen
 
 			playersOnline++;
 
@@ -74,19 +75,28 @@ public class Server {
 
 			updateActivePlayers(); // uppdaterar listan över aktiva spelare
 
-			// APN = Asign player number, skickar spelarens nummer
+			int teamNumber = playersOnline % 2;
+
+			// APN = Asign player number, skickar spelarens nummer samt vilket lag spelaren ska vara med i
 			sendToClient(newPlayerNumber, "APN!" + newPlayerNumber);
 
 			sendPlayerList(); // skickar spelarlistan till alla spelare
 
 			ServerMap.sendWorldInfo(newPlayerNumber);
+			
+			// lägger till spelaren i ett lag och skickar all information om alla lag till alla spelare för att uppdatera allt
+			teams.get(teamNumber).addPlayer(SR);
 
-			sendToClient(newPlayerNumber, "SSPOS!500&6500"); // sending startposition - SSPOS&startX&startY
+			
+
+			// sendToClient(newPlayerNumber, "SSPOS!2000&4000"); // sending startposition - SSPOS&startX&startY
 
 			// done sending informaiton
 			sendToClient(newPlayerNumber, "DSI"); // done sending information, detta innebär att server har skickat all nödvändig information för att starta spelet så klienten vet när spelet kan startas
 
 			updateTextAreas();
+
+			ServerFrame.appendConsole("Player connected");
 
 		} catch (IndexOutOfBoundsException e) {
 			// TODO Auto-generated catch block
@@ -94,6 +104,14 @@ public class Server {
 			System.out.println("Error 5");
 		}
 
+	}
+
+	public static void initTeams() {
+		Team team = new Team(0);
+		teams.add(team);
+
+		team = new Team(1);
+		teams.add(team);
 	}
 
 	public static void closeServer() {
@@ -159,10 +177,30 @@ public class Server {
 		}
 	}
 
+	public static ServerReturn getPlayerByNumber(int playerNumber) {
+
+		ServerReturn player = null;
+
+		for (int i = 0; i < SRS.size(); i++) {
+			if (SRS.get(i).getPlayerNumber() == playerNumber) {
+				player = SRS.get(i);
+			}
+		}
+
+		return player;
+	}
+
 	// skickar listan över aktiva spelare till alla klienter
 	public static void sendPlayerList() {
 		sendToAllClients("SPL!" + activePlayers);
 		ServerFrame.appendConsole("Sending CRL: " + activePlayers);
+	}
+
+	// skickar information om alla lag till alla spelare
+	public static void sendTeamsInfo() {
+		for (int i = 0; i < teams.size(); i++) {
+			teams.get(i).sendTeamInfoToAll();
+		}
 	}
 
 }

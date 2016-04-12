@@ -1,5 +1,5 @@
 /*
- För varje spelare som ansluter skapas en ny instans utav denna klassen, server är alltså multi-trådad.
+ För varje spelare som ansluter skapas en ny instans utav denna klassen.
  I run(), som körs hela tiden kollar servern om denna klienten som den här tråden hör ihop med har skickat
  ett meddelande till server och hanterar det. Alla meddelanden som börjar med '#' ska direkt skickas vidare
  till alla andra klienter då de också ska ta del utav denna informationen. 
@@ -11,7 +11,6 @@ package server;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Scanner;
 
 public class ServerReturn implements Runnable {
@@ -19,9 +18,12 @@ public class ServerReturn implements Runnable {
 	public Socket SOCK;
 	private Scanner INPUT;
 	private PrintWriter OUT;
+
 	String MESSAGE = "";
 	int playerNumber = 0;
 	int delay = 0;
+
+	Team team;
 
 	public ServerReturn(Socket X, int playersOnline) {
 
@@ -46,11 +48,12 @@ public class ServerReturn implements Runnable {
 		int index = Server.SRS.indexOf(this);
 
 		Server.SRS.remove(index);
-
+		
 		Server.updateActivePlayers(); // servern uppdaterar aktiva spelare
 		Server.sendPlayerList(); // skickar den uppdaterade listan över spelare till alla klienter
 		Server.updateTextAreas(); // uppdaterar serverFrames informationsfält
 
+		team.removePlayer(this);
 	}
 
 	@Override
@@ -87,11 +90,27 @@ public class ServerReturn implements Runnable {
 						if (MESSAGE.startsWith("#SNDTREECUTDOWN")) {
 							ServerMap.cutTreeFromClient(MESSAGE);
 						}
-						
+
+						if (MESSAGE.startsWith("#SENDCHANGEOBJECTIVETOWEROWNER")) {
+							ServerMap.changeObjectiveOwnerFromClient(MESSAGE);
+						}
+
 						if (MESSAGE.startsWith("#SNDCLIENTREMOVEWORLDOBJECT")) {
 							ServerMap.removeObjectFromClient(MESSAGE);
 						}
 
+					}
+
+					if (MESSAGE.startsWith("SENDDROPALLITEMS")) {
+						ServerMap.dropAllItemsFromPlayer(MESSAGE);
+					}
+					
+					if (MESSAGE.startsWith("SENDSPAWNLADDER")) {
+						ServerMap.spawnLadderFromClient(MESSAGE);
+					}
+					
+					if (MESSAGE.startsWith("SENDSPAWNOPENCHEST")) {
+						ServerMap.spawnOpenChestFromClient(MESSAGE);
 					}
 
 					if (OUT.checkError()) {
@@ -112,6 +131,18 @@ public class ServerReturn implements Runnable {
 		}
 		// TODO Auto-generated method stub
 
+	}
+
+	public int getPlayerNumber() {
+		return this.playerNumber;
+	}
+
+	public void setTeam(Team team) {
+		this.team = team;
+	}
+
+	public Team getTeam() {
+		return team;
 	}
 
 	public Socket getSocket() {
