@@ -4,8 +4,8 @@ import java.awt.Rectangle;
 
 public class Building extends WorldObject {
 
-	public Building(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	public Building(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
 	}
 
 	public Rectangle createCollisionBox() {

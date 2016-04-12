@@ -17,25 +17,25 @@ public class ReadyIcon extends Icon {
 	AtomicBoolean ready;
 	AtomicInteger cooldown;
 	AtomicInteger cooldownCounter;
+	AtomicBoolean unlocked;
 
-	public ReadyIcon(int x, int y, int width, int height, AtomicBoolean ready, AtomicInteger cooldown, AtomicInteger cooldownCounter, String readyImagePath, String notReadyImagePath) {
+	public ReadyIcon(int x, int y, int width, int height, AtomicBoolean ready, AtomicInteger cooldown, AtomicInteger cooldownCounter, String readyImagePath, String notReadyImagePath, AtomicBoolean unlocked) {
 		super(x, y, width, height);
 		this.ready = ready;
 		this.readyImage = Images.readImageFromPath(readyImagePath);
 		this.notReadyImage = Images.readImageFromPath(notReadyImagePath);
 		this.cooldown = cooldown;
 		this.cooldownCounter = cooldownCounter;
+		this.unlocked = unlocked;
 	}
 
 	public void paint(Graphics2D g2) {
-
 		g2.drawImage(getImage(), getX(), getY(), getWidth(), getHeight(), null);
-
 	}
 
 	public Image getImage() {
 		Image img;
-		if (ready.get()) { // om den är redo kommer båda bilderna målas på varandra och den kommer se grön ut
+		if (ready.get() && unlocked.get()) { // om den är redo kommer båda bilderna målas på varandra och den kommer se grön ut
 
 			int imgWidth = readyImage.getWidth(null);
 			int imgHeight = readyImage.getHeight(null);

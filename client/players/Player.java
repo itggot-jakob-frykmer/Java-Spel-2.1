@@ -1,22 +1,29 @@
 package client.players;
 
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.net.URL;
 import java.util.ArrayList;
 
-import client.Screen;
+import client.Main;
+import client.effects.Cloud;
+import client.effects.Effect;
 import client.handlers.Images;
 import client.handlers.Sound;
+import client.players.spells.CastSpell;
+import client.players.spells.FireShield;
+import client.players.spells.Spell;
 
 public abstract class Player {
 
 	private int x;
 	private int y;
-	private final int width = 77;
-	private final int height = 110;
+
+	public static double sizeScale = 0.17;
+	private final int width = (int) (411 * sizeScale);
+	private final int height = (int) (588 * sizeScale);
+
 	private int playerNumber;
 	private int characterType;
 
@@ -36,6 +43,14 @@ public abstract class Player {
 	private int imageChangeTick = 0;
 	int currentImageIndex = 0;
 
+	private URL jumpSound;
+
+	private Team team;
+
+	private Weapon weapon;
+
+	private FireShield fireShield;
+
 	/*
 	 * private int changedRunningImageTick = 0; // ökar varje gång man byter bild private int runningSoundDelayTick = 8;
 	 */
@@ -51,20 +66,29 @@ public abstract class Player {
 
 	private URL runningSound;
 
+	public ArrayList<Spell> activeSpells = new ArrayList<Spell>();
+
 	public Player(int playerNumber, int characterType) {
 		this.playerNumber = playerNumber;
 		this.characterType = characterType;
-		initImages();
+		initImages(characterType);
 		initSounds();
 
-		healthBar = new HealthBar();
+		fireShield = new FireShield(0, this);
+		healthBar = new HealthBar(this);
+		
+
+		jumpSound = Sound.readSoundFile("sounds/players/Jump.wav");
 	}
 
 	public void initSounds() {
 		runningSound = Sound.readSoundFile("sounds/players/FootstepGrass.wav");
 	}
 
-	public void initImages() {
+	public void initImages(int characterType) {
+		movingImages.clear();
+		standingImages.clear();
+
 		for (int i = 0; i < 14; i++) {
 			Image img = Images.readImageFromPath("characters/" + characterType + "/moving/" + i + ".png");
 			movingImages.add(img);
@@ -79,11 +103,29 @@ public abstract class Player {
 		currentImage = standingImages.get(0);
 	}
 
-	// funktion för att uppdatera för både sin egen och andra spelare
-	public void commonUpdate() {
-		updateCurrentImage();
+	public void changeCharacter(int characterType) {
+		this.characterType = characterType;
+		initImages(characterType);
 	}
 
+	public void playJumpSound() {
+		Sound.play(jumpSound, getX(), getY(), 1f);
+	}
+
+	// funktion för att uppdatera för både sin egen och andra spelare
+	public void commonUpdate() {
+		fireShield.update();
+		updateCurrentImage();
+		updateSpells();
+	}
+
+	public void updateSpells() {
+		for (int i = 0; i < activeSpells.size(); i++) {
+			activeSpells.get(i).update();
+		}
+	}
+
+	// uppdaterar vilken bild denna spelaren ska ha just nu
 	public void updateCurrentImage() {
 
 		imageChangeTick++;
@@ -96,7 +138,9 @@ public abstract class Player {
 
 			// Byter bild för när man rör sig
 			if (isMoving()) {
-				
+
+				// imageChangeDelay = 100;
+				// gör så spring-bilden bara byts ibland
 				if (imageChangeTick % imageChangeDelay == 0) {
 
 					// gör så att bild indexet loopar runt hela arrayen
@@ -109,10 +153,9 @@ public abstract class Player {
 
 					// Gör så att spring-ljudet bara spelas upp vissa gånger bilden byts
 					if (currentImageIndex == 1 || currentImageIndex == 8) {
-						Sound.play(runningSound, getX(), getY(), 1f);
+						Sound.play(runningSound, getX(), getY(), 0.7f);
 					}
 
-					// changedRunningImageTick++;
 				}
 
 			} else { // byter bild för när man står stilla
@@ -125,11 +168,27 @@ public abstract class Player {
 						currentImageIndex = 0;
 					}
 
-					currentImage = standingImages.get(currentImageIndex);
+					if (standingImages.size() > 0) {
+						currentImage = standingImages.get(currentImageIndex);
+					}
+
 				}
 			}
 		}
 
+		if (weapon != null) {
+			weapon.updatePosition();
+		}
+
+	}
+
+	public void setTeam(Team team) {
+		this.team = team;
+		changeCharacter(team.getTeamNumber());
+	}
+
+	public Team getTeam() {
+		return team;
 	}
 
 	public ArrayList<Image> getMovingImages() {
@@ -182,7 +241,64 @@ public abstract class Player {
 
 	public abstract void update();
 
-	public abstract void paint(Graphics2D g2d);
+	public abstract void paintCharacter(Graphics2D g2d);
+
+	public void paint(Graphics2D g2d) {
+
+		paintSpells(g2d);
+
+		if (isAlive()) {
+
+			// om man har ett vapen målas det ut. Och om man kollar åt vänster för då ska vapnet målas först så det hamnar bakom gubben
+			if (isFacingLeft() && weapon != null) {
+				weapon.paint(g2d);
+			}
+
+			getHealthBar().paint(g2d);
+			paintCharacter(g2d);
+			fireShield.paint(g2d);
+
+			// om man har ett vapen målas det ut
+			if (!isFacingLeft() && weapon != null) {
+				weapon.paint(g2d);
+			}
+		}
+	}
+
+	// målar alla spells som tillhör denna spelare
+	public void paintSpells(Graphics2D g2d) {
+		for (int i = 0; i < activeSpells.size(); i++) {
+			activeSpells.get(i).paint(g2d);
+		}
+	}
+
+	public void removeSpellById(int id) {
+		// loopar igenom alla spells och tar bort den spellen som har ID:t
+		for (int i = 0; i < activeSpells.size(); i++) {
+			Spell spell = activeSpells.get(i);
+
+			if (spell.getId() == id) {
+				activeSpells.remove(spell);
+			}
+		}
+	}
+
+	public void setWeapon(int versionType, int level) {
+		Weapon weapon = new Weapon(versionType, level, this);
+		setWeapon(weapon);
+	}
+
+	public void setWeapon(Weapon weapon) {
+		this.weapon = weapon;
+	}
+
+	public Weapon getWeapon() {
+		return weapon;
+	}
+
+	public boolean isAlive() {
+		return (getHealth() > 0);
+	}
 
 	public int getPlayerNumber() {
 		return playerNumber;
@@ -270,6 +386,14 @@ public abstract class Player {
 		return healthBar;
 	}
 
+	public int getEnergy() {
+		return healthBar.getEnergy();
+	}
+
+	public void setEnergy(int energy) {
+		healthBar.setEnergy(energy);
+	}
+
 	public int getHealth() {
 		return healthBar.getHealth();
 	}
@@ -282,51 +406,28 @@ public abstract class Player {
 		this.dashing = dashing;
 	}
 
-	public class HealthBar {
+	public int getCurrentImageIndex() {
+		return currentImageIndex;
+	}
 
-		private int health;
-		private int maxHealth = 100;
-		private Image gradImage;
-		private int displayWidth = 100;
-		private int displayHeight = 9;
+	public FireShield getFireShield() {
+		return fireShield;
+	}
 
-		private int xOffset = -10;
-		private int yOffset = -20;
+	public void createDoubleJumpEffect() {
 
-		public HealthBar() {
-			this.health = maxHealth;
-			this.gradImage = Images.readImageFromPath("ui/health_grad.png");
-		}
+		int numClouds = 10;
+		int skip = 360 / numClouds;
 
-		public void paint(Graphics2D g2d) {
-			g2d = (Graphics2D) g2d.create();
+		int width = 30;
+		int height = 30;
 
-			int barWidth = (int) (((getHealth() * 1.0) / (maxHealth)) * displayWidth);
+		int x = getX() + getWidth() / 2 - width / 2;
+		int y = getY() + getHeight() - height;
 
-			int x = Screen.fixX(getX() + xOffset, 1);
-			int y = Screen.fixY(getY() + yOffset, 1);
-
-			g2d.setColor(new Color(100, 0, 0));
-			g2d.fillRect(x, y, displayWidth, displayHeight);
-			g2d.setColor(new Color(200, 0, 0));
-			g2d.fillRect(x, y, barWidth, displayHeight);
-			g2d.drawImage(gradImage, x, y, displayWidth, displayHeight, null);
-
-			// g2d.Arc(200, 200, 400, 400, 90, -90);
-		}
-
-		public int getHealth() {
-			return health;
-		}
-
-		public void setHealth(int health) {
-			if (health > maxHealth) {
-				health = maxHealth;
-			}
-			if (health < 0) {
-				health = 0;
-			}
-			this.health = health;
+		for (int i = 0; i < numClouds; i++) {
+			Effect cloud = new Cloud(x, y, width, height, skip * i);
+			Main.effects.add(cloud);
 		}
 
 	}

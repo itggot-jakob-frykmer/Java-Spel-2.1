@@ -9,25 +9,39 @@ import client.handlers.Sound;
 
 public class Potion extends LootableWorldObject {
 
-	private URL pickupSound;
-	
-	public Potion(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	public Potion(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
+
+		// sätter en highlight image
 		Image img = Images.readImageFromPath("potions/potionHighlight.png");
 		setImageHighlight(img);
+
 		setNumItems(1);
-		
-		pickupSound = Sound.readSoundFile("sounds/objects/PotionHandle.wav");
+
+		URL pickupSound = Sound.readSoundFile("sounds/objects/PotionHandle.wav");
+		setPickupSound(pickupSound);
 	}
 
 	@Override
 	public void pickUpItem() {
-		Main.clientPlayer.pickUpPotion(getNumItems());
+
+		// beroende på vilken typ av potion det är plockas olika upp
+		if (getVersionType() == 0) {
+			Main.clientPlayer.pickUpHealthPotion(getNumItems());
+
+		} else if (getVersionType() == 1) {
+			Main.clientPlayer.pickUpEnergyPotion(getNumItems());
+		}
 	}
 
 	@Override
 	public void onRemove() {
-		Sound.play(pickupSound, 1f);
+		playPickupSound();
+	}
+
+	@Override
+	public void uniqueUpdate() {
+		// TODO Auto-generated method stub
 		
 	}
 

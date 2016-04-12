@@ -19,6 +19,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
 import client.Main;
+import client.Screen;
 
 /**
  *
@@ -89,112 +90,117 @@ public class Sound {
 		}
 	}
 
-	public static void play(URL url, int soundX, int soundY, float specificMod) {
+	public static void play(final URL url, final int soundX, final int soundY, final float specificMod) {
 
+		new Thread(new Runnable() {
+			public void run() {
+				try {
+					
+					int balanceModifier = 1;
 
-		try {
-
-			int balanceModifier = 1;
-
-			int xDiff;
-			int yDiff;
-
-			// kollar så att din karaktär har skapats
-			if (Main.clientPlayer != null) {
-				xDiff = soundX - Main.clientPlayer.getX();
-				yDiff = soundY - Main.clientPlayer.getY();
-			} else {
-				xDiff = 0;
-				yDiff = 0;
-			}
-
-			// räknar ut avståndet mellan ljudet och din karaktär
-			int distance = Math.abs((int) Math.sqrt(Math.pow(xDiff, 2) + Math.pow(yDiff, 2)));
-
-			// räknar ut hur hög volymet ska vara, ju hÃ¶gre avstÃ¥nd desto lÃ¤gre ljud (bÃ¶rjar pÃ¥ 6 fÃ¶r max vÃ¤rdet pÃ¥ volymet Ã¤r 6)
-			float flVolume = 6 - (float) (distance / (75 * 1.0));
-
-			float flBalance; // balansen i hÃ¶gtalaren
-
-			// kollar om ljudet kommer frÃ¥n hÃ¶ger eller vÃ¤nster
-			if (xDiff > 0) {
-				balanceModifier = 1;
-			} else if (xDiff < 0) {
-				balanceModifier = -1;
-			}
-			// om skottet Ã¤r väldigt nära din karaktär blir balancen 0
-			if (Math.abs(xDiff) < 120) {
-				balanceModifier = 0;
-			}
-
-			// om avstÃ¥ndet Ã¤r 0 sÃ¥ blir balancen 0. Ju högre avståndet är desto högre blir flBalance
-			if (distance != 0 && xDiff != 0) {
-				flBalance = (float) (1 - (1D / (Math.abs(xDiff) * 0.01))) * balanceModifier;
-			} else {
-				flBalance = 0f;
-			}
-
-			// när distance blir för litet ibland så blir flBalance över 1 och då blir den 0
-			if (flBalance > 1 || flBalance < -1) {
-				flBalance = 0;
-			}
-
-			// -80 är min-värdet för volym
-			if (flVolume < -80) {
-				flVolume = -80;
-			}
-
-			AudioInputStream sound = AudioSystem.getAudioInputStream(url);
-
-			// hÃ¤mtar klippet
-			final Clip clip = AudioSystem.getClip();
-			clip.open(sound);
-
-			try {
-				sound.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-
-			// sätter balansen i högtalarna
-			FloatControl balance = (FloatControl) clip.getControl(FloatControl.Type.BALANCE);
-			balance.setValue(flBalance);
-
-			// sätter volymen
-			FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-
-			volume.setValue(fixVolume(flVolume, masterVolumeMod, specificMod));
-
-			clip.start();
-
-			// gör så att klippet stängs efter att det spelats klart, detta är för att skona ramminnet
-			clip.addLineListener(new LineListener() {
-				@Override
-				public void update(LineEvent event) {
-					if (event.getType() == LineEvent.Type.STOP) {
-						clip.close();
+					int xDiff;
+					int yDiff;
+					
+					// kollar så att din karaktär har skapats
+					if (Main.clientPlayer != null) {
+						xDiff = soundX - Main.clientPlayer.getX();
+						yDiff = soundY - Main.clientPlayer.getY();
+					} else {
+						xDiff = 0;
+						yDiff = 0;
 					}
+					
+					// räknar ut avståndet mellan ljudet och din karaktär
+					int distance = Math.abs((int) Math.sqrt(Math.pow(xDiff, 2) + Math.pow(yDiff, 2)));
+					
+					// räknar ut hur hög volymet ska vara, ju hÃ¶gre avstÃ¥nd desto lÃ¤gre ljud (bÃ¶rjar pÃ¥ 6 fÃ¶r max vÃ¤rdet pÃ¥ volymet Ã¤r 6)
+					float flVolume = 6 - (float) (distance / (75 * 1.0));
+
+					float flBalance; // balansen i hÃ¶gtalaren
+
+					// kollar om ljudet kommer frÃ¥n hÃ¶ger eller vÃ¤nster
+					if (xDiff > 0) {
+						balanceModifier = 1;
+					} else if (xDiff < 0) {
+						balanceModifier = -1;
+					}
+					
+					// om skottet Ã¤r väldigt nära din karaktär blir balancen 0
+					if (Math.abs(xDiff) < 120) {
+						balanceModifier = 0;
+					}
+					
+					// om avstÃ¥ndet Ã¤r 0 sÃ¥ blir balancen 0. Ju högre avståndet är desto högre blir flBalance
+					if (distance != 0 && xDiff != 0) {
+						flBalance = (float) (1 - (1D / (Math.abs(xDiff) * 0.01))) * balanceModifier;
+					} else {
+						flBalance = 0f;
+					}
+					
+					// när distance blir för litet ibland så blir flBalance över 1 och då blir den 0
+					if (flBalance > 1 || flBalance < -1) {
+						flBalance = 0;
+					}
+
+					// -80 är min-värdet för volym
+					if (flVolume < -80) {
+						flVolume = -80;
+					}
+					
+					AudioInputStream sound = AudioSystem.getAudioInputStream(url);
+					
+					// hÃ¤mtar klippet
+					final Clip clip = AudioSystem.getClip();
+					
+					clip.open(sound);
+					
+					try {
+						sound.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					
+					// sätter balansen i högtalarna
+					FloatControl balance = (FloatControl) clip.getControl(FloatControl.Type.BALANCE);
+					
+					balance.setValue(flBalance);
+					
+					// sätter volymen
+					FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+					
+					volume.setValue(fixVolume(flVolume, masterVolumeMod, specificMod));
+					
+					clip.start();
+					
+					// gör så att klippet stängs efter att det spelats klart, detta är för att skona ramminnet
+					clip.addLineListener(new LineListener() {
+						@Override
+						public void update(LineEvent event) {
+							if (event.getType() == LineEvent.Type.STOP) {
+
+								
+								clip.close();
+								
+
+							}
+						}
+					});
+					
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-			});
-
-			// clip.loop(Clip.LOOP_CONTINUOUSLY);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
+			}
+		}).start();
 	}
 
 	// fixar volymen enligt en modifer så volymen kan justeras
 	public static float fixVolume(float oldVolume, float modifer, float specificMod) {
 		float newVolume = oldVolume;
 
-
-		
 		// all volym under -45 går knappt att höra
 		float volDistFromMin = Math.abs(-45 - oldVolume);
 
 		newVolume = -45 + volDistFromMin * modifer * specificMod;
-
 
 		return newVolume;
 	}

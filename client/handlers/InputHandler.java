@@ -1,6 +1,6 @@
 /*
- I denna klassen sker all event-hantering. Om man Ã¤r i spelet sker hanteringen 
- direkt i metoderna i denna klassen och om man Ã¤r i huvudmenyn skickas eventen
+ I denna klassen sker all event-hantering. Om man är i spelet sker hanteringen 
+ direkt i metoderna i denna klassen och om man är i huvudmenyn skickas eventen
  till en metod i StartMenu.java som hanterar eventen.
 
 
@@ -17,12 +17,13 @@ import java.awt.event.MouseWheelListener;
 
 import client.Main;
 import client.Screen;
+import client.players.YourPlayer;
+
 
 public class InputHandler implements KeyListener, MouseListener, MouseMotionListener, MouseWheelListener {
 
-	// static int worldMouseX, worldMouseY; // mousens globala x och y koordinater, alltsÃ¥ koordinaterna den har i världen
 
-	static int onScreenMouseX, onScreenMouseY; // musens lokala råa x och y koordinat på skärmen
+	public static int onScreenMouseX, onScreenMouseY; // musens lokala råa x och y koordinat på skärmen
 	public static int scaledOnScreenMouseX; // skalade lokala koordinater, som tar hänsyn till att din klients upplösning är skalad
 	public static int scaledOnScreenMouseY;
 
@@ -32,73 +33,87 @@ public class InputHandler implements KeyListener, MouseListener, MouseMotionList
 	public void keyPressed(KeyEvent e) {
 		// System.out.print(e.getKeyChar());
 
-		Main.clientPlayer.getActionBar().handleKeyEvent(e);
-
 		if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
 			System.exit(0);
 		}
 
-		if (e.getKeyCode() == KeyEvent.VK_D) {
-			Main.clientPlayer.setMovingRight(true);
-			Main.clientPlayer.setMovingLeft(false);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_A) {
-			Main.clientPlayer.setMovingLeft(true);
-			Main.clientPlayer.setMovingRight(false);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_W) {
-			Main.clientPlayer.setMovingUp(true);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_S) {
-			Main.clientPlayer.setMovingDown(true);
-		}
+		if (Main.state == Main.States.inGame) {
+			Main.clientPlayer.getActionBar().handleKeyEvent(e);
 
-		if (e.getKeyCode() == KeyEvent.VK_E) {
-			Main.clientPlayer.setHoldingInteract(true);
-		}
+			if (e.getKeyCode() == KeyEvent.VK_D) {
+				Main.clientPlayer.setMovingRight(true);
+				Main.clientPlayer.setMovingLeft(false);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_A) {
+				Main.clientPlayer.setMovingLeft(true);
+				Main.clientPlayer.setMovingRight(false);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_W) {
+				Main.clientPlayer.setMovingUp(true);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_S) {
+				Main.clientPlayer.setMovingDown(true);
+			}
 
-		if (e.getKeyCode() == KeyEvent.VK_F3) {
-			Screen.devMode = !Screen.devMode;
-		}
+			if (e.getKeyCode() == KeyEvent.VK_E) {
+				Main.clientPlayer.setHoldingInteract(true);
+			}
 
-		if (e.getKeyCode() == KeyEvent.VK_SPACE) {
-			Main.clientPlayer.startJump();
-		}
+			if (e.getKeyCode() == KeyEvent.VK_F3) {
+				Screen.devMode = !Screen.devMode;
+			}
 
-		if (e.getKeyCode() == KeyEvent.VK_F) {
-			Screen.toggleZoom();
-		}
+			if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+				Main.clientPlayer.startJump();
+			}
 
-		if (e.getKeyCode() == KeyEvent.VK_R) {
-			Main.clientPlayer.startDash();
-		}
-		if (e.getKeyCode() == KeyEvent.VK_G) {
-			Main.clientPlayer.toggleGodMode();
-		}
-		
-		if (e.getKeyCode() == KeyEvent.VK_F4) {
-			Sound.startMusic();
+			if (e.getKeyCode() == KeyEvent.VK_F) {
+				Screen.toggleZoom();
+			}
+
+			if (e.getKeyCode() == KeyEvent.VK_B) {
+				// MapHandler.causeBubbleEffect(Main.clientPlayer.getX(), Main.clientPlayer.getY(), 10, 0);
+			}
+
+			if (e.getKeyCode() == KeyEvent.VK_SHIFT) {
+				Main.clientPlayer.startDash();
+			}
+			if (e.getKeyCode() == KeyEvent.VK_G) {
+				Main.clientPlayer.toggleGodMode();
+			}
+
+			if (e.getKeyCode() == KeyEvent.VK_F2) {
+				Main.clientPlayer.createDoubleJumpEffect();
+			}
+
+			if (e.getKeyCode() == KeyEvent.VK_F4) {
+				Sound.startMusic();
+			}
+		} else if (Main.state == Main.States.inMainMenu) {
+			Main.mainMenu.handleKeyEvent(e);
 		}
 
 	}
 
 	@Override
 	public void keyReleased(KeyEvent e) {
-		if (e.getKeyCode() == KeyEvent.VK_D) {
-			Main.clientPlayer.setMovingRight(false);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_A) {
-			Main.clientPlayer.setMovingLeft(false);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_W) {
-			Main.clientPlayer.setMovingUp(false);
-		}
-		if (e.getKeyCode() == KeyEvent.VK_S) {
-			Main.clientPlayer.setMovingDown(false);
-		}
+		if (Main.state == Main.States.inGame) {
+			if (e.getKeyCode() == KeyEvent.VK_D) {
+				Main.clientPlayer.setMovingRight(false);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_A) {
+				Main.clientPlayer.setMovingLeft(false);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_W) {
+				Main.clientPlayer.setMovingUp(false);
+			}
+			if (e.getKeyCode() == KeyEvent.VK_S) {
+				Main.clientPlayer.setMovingDown(false);
+			}
 
-		if (e.getKeyCode() == KeyEvent.VK_E) {
-			Main.clientPlayer.setHoldingInteract(false);
+			if (e.getKeyCode() == KeyEvent.VK_E) {
+				Main.clientPlayer.setHoldingInteract(false);
+			}
 		}
 	}
 
@@ -128,6 +143,12 @@ public class InputHandler implements KeyListener, MouseListener, MouseMotionList
 	@Override
 	public void mousePressed(MouseEvent a) {
 		clicking = true;
+		// om man är ingame
+		if (Main.state == Main.States.inGame) {
+			Main.clientPlayer.getActionBar().handleMouseClicked(a);
+		} else if (Main.state == Main.States.inMainMenu) {
+			Main.mainMenu.handleMouseClicked(a);
+		}
 	}
 
 	@Override
@@ -159,8 +180,24 @@ public class InputHandler implements KeyListener, MouseListener, MouseMotionList
 		scaledOnScreenMouseX = (int) (e.getX() / Screen.scaleWidth);
 		scaledOnScreenMouseY = (int) (e.getY() / Screen.scaleHeight);
 
-		Main.clientPlayer.getActionBar().handleMouseEvent(e);
+		// om man är ingame
+		if (Main.state == Main.States.inGame) {
+			Main.clientPlayer.getActionBar().handleMouseMoved(e);
+		} else if (Main.state == Main.States.inMainMenu) {
+			Main.mainMenu.handleMouseMoved(e);
+		}
 
+	}
+
+	public static double getMouseAngle() {
+		double angle = 0;
+
+		int yDist = scaledOnScreenMouseY - YourPlayer.onScreenY;
+		int xDist = scaledOnScreenMouseX - YourPlayer.onScreenX;
+
+		angle = Math.atan2(yDist, xDist);
+
+		return angle;
 	}
 
 	public static int getWorldMouseX() {

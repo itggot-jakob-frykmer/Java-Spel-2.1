@@ -1,5 +1,5 @@
 /*
- Här sker allt grafiskt
+ Hï¿½r sker allt grafiskt
 
  */
 package client;
@@ -7,49 +7,62 @@ package client;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontFormatException;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Point;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.font.FontRenderContext;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
 
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
+import client.effects.Effect;
 import client.handlers.Images;
 import client.handlers.InputHandler;
-import client.objects.BackgroundObject;
-import client.objects.TreeSpawn.ChoppedTree;
+import client.handlers.MapHandler;
 import client.objects.WorldObject;
+import client.objects.backgroundObjects.BackgroundObject;
 import client.players.Player;
+import client.players.Team;
 import client.players.YourPlayer;
+import server.ServerMap;
 
 @SuppressWarnings("serial")
 public class Screen extends JPanel implements Runnable {
 
 	InputHandler input;
 
-	static boolean GM = false; // GM = God mode, finns för att kunna testa spelat lättare
+	static boolean GM = false; // GM = God mode, fï¿½r att kunna testa spelat lï¿½ttare
 
-	public static int sleep = 5; // hur länga tråden ska vänta mellan varje gång den körs
-	static int tick = 0; // tick tickar relativt hur länge tråden väntar mellan varje gång den körs så man kan använda den till att räkna tid
-	int singleTick = 0; // singleTick tickar en gång varje gång main-loopen körs
+	public static int sleep = 5; // hur lï¿½nga trï¿½den ska vï¿½nta mellan varje gï¿½ng den kï¿½rs
+	static int tick = 0; // tick tickar relativt hur lï¿½nge trï¿½den vï¿½ntar mellan varje gï¿½ng den kï¿½rs sï¿½ man kan anvï¿½nda den till att rï¿½kna tid
+	int singleTick = 0; // singleTick tickar en gï¿½ng varje gï¿½ng main-loopen kï¿½rs
 
 	static int noMessageReceivedFor = 0;
 
-	static String standardFont = "TimesRoman";
+	public static Font standardFont;
+	public static Font secondFont = new Font("Arial", Font.PLAIN, 20);
 
-	// skalor utifrån skärmens upplösning
+	// skalor utifrï¿½n skï¿½rmens upplï¿½sning
 	public static double scaleWidth;
 	public static double scaleHeight;
 
-	static double scaleWidthZoom;
-	static double scaleHeightZoom;
+	public static double scaleWidthZoom;
+	public static double scaleHeightZoom;
+
+	public static String test = "-1";
+	public static String test1 = "-1";
+	public static String test2 = "-1";
+	public static String test3 = "-1";
 
 	/*
 	 * static double currentScaleWidth = 1; static double currentScaleHeight = 1;
@@ -62,7 +75,7 @@ public class Screen extends JPanel implements Runnable {
 
 	public static boolean zoomOutDone = false;
 
-	public static int panelWidth = 1920; // panelens bredd och höjd
+	public static int panelWidth = 1920; // panelens bredd och hï¿½jd
 	public static int panelHeight = 1080;
 
 	public static int screenWidth;
@@ -71,18 +84,16 @@ public class Screen extends JPanel implements Runnable {
 	static JFrame frame;
 	public static boolean devMode = false;
 
-	// olika game states
-	enum States {
-		inMainMenu, inLoadingScreen, inGameMenu, inGame;
-	}
-
-	static States state;
+	// Fï¿½r att vissa saker ska mï¿½las framfï¿½r allt annat mï¿½ste de fï¿½rst mï¿½las pï¿½ denna bilden och sen ut pï¿½ skï¿½rmen. Detta ï¿½r pï¿½ grund av att det inte finns nï¿½got annat sï¿½tt att kontrollera vilket lager
+	// saker hamner pï¿½ fï¿½rutom att mï¿½la ut dom i rï¿½tt ordning men det gï¿½r inte alltid.
+	public static BufferedImage frontImage = new BufferedImage(panelWidth, panelHeight, BufferedImage.TYPE_INT_ARGB);
+	public static Graphics2D frontImageGraphics = frontImage.createGraphics();
 
 	public Screen() {
 		super();
-		state = States.inMainMenu;
+		Main.state = Main.States.inMainMenu;
 
-		// startar InputHandler och lägger in alla eventListeners
+		// startar InputHandler och lï¿½gger in alla eventListeners
 		input = new InputHandler();
 		addKeyListener(input);
 		addMouseMotionListener(input);
@@ -90,57 +101,118 @@ public class Screen extends JPanel implements Runnable {
 		addMouseWheelListener(input);
 
 		setFocusable(true);
-		setFocusTraversalKeysEnabled(false); // gör så tab funkar
+		setFocusTraversalKeysEnabled(false); // gï¿½r sï¿½ bl.a. tab funkar
 
 		Thread thread = new Thread(this);
 		thread.start();
-
 	}
 
 	@Override
 	public void paint(Graphics g) {
 		super.paint(g);
+
 		Graphics2D g2d = (Graphics2D) g;
 
 		setRenderSettings(g2d, true);
 
-		if (zoomOutDone) {
+		if (zoomOutDone) { // Om allt ska vara utzoomat
 			g2d.scale(scaleWidthZoom, scaleHeightZoom);
-			/*
-			 * g2d.translate(panelWidth / 2, panelHeight / 2); g2d.scale(scaleWidthZoom, scaleHeightZoom); g2d.translate(-panelWidth, -panelHeight);
-			 */
+
 		} else {
-
-			g2d.scale(scaleWidth, scaleHeight); // skalar allt enligt skalorna som räknades ut när spelet startades så att spelat funkar på alla skärmupplösningar
+			g2d.scale(scaleWidth, scaleHeight); // skalar allt enligt skalorna som rï¿½knades ut nï¿½r spelet startades sï¿½ att spelat funkar pï¿½ alla skï¿½rmupplï¿½sningar
 		}
 
-		paintBackgrounds(g2d);
+		if (Main.state == Main.States.inGame) {
 
-		if (devMode) {
-			g2d.drawString("Playernumber: " + Client.playerNumber, 100, 100);
-			g2d.drawString("Fallingspeed: " + Main.clientPlayer.getFallingSpeed(), 100, 120);
 
-			g2d.drawString("Average delay to clients: " + Client.averageDelayToClients, 100, 140);
-			g2d.drawString("x: " + Main.clientPlayer.getX(), 100, 160);
-			g2d.drawString("y: " + Main.clientPlayer.getY(), 100, 180);
-			g2d.drawString("LengthFallen : " + Main.clientPlayer.getLengthFallen(), 100, 200);
-			g2d.drawString("Moving speed : " + Main.clientPlayer.getMovingSpeed(), 100, 220);
+
+			paintBackgrounds(g2d);
+
+			if (devMode) {
+				g2d.drawString(test, 300, 100);
+				g2d.drawString(test1, 300, 120);
+				g2d.drawString(test2, 300, 140);
+				g2d.drawString(test3, 300, 160);
+
+				g2d.drawString("Playernumber: " + Client.playerNumber, 100, 100);
+				g2d.drawString("Fallingspeed: " + Main.clientPlayer.getFallingSpeed(), 100, 120);
+
+				g2d.drawString("Average delay to clients: " + Client.averageDelayToClients, 100, 140);
+				g2d.drawString("x: " + Main.clientPlayer.getX(), 100, 160);
+				g2d.drawString("y: " + Main.clientPlayer.getY(), 100, 180);
+				g2d.drawString("LengthFallen : " + Main.clientPlayer.getLengthFallen(), 100, 200);
+				g2d.drawString("Moving speed : " + Main.clientPlayer.getMovingSpeed(), 100, 220);
+				g2d.drawString("Canfly : " + Main.clientPlayer.getCanFly(), 100, 240);
+				g2d.drawString("IsMovingUp : " + Main.clientPlayer.isMovingUp(), 100, 260);
+				g2d.drawString("playNumberreal: " + Main.clientPlayer.getPlayerNumber(), 100, 280);
+				g2d.drawString("currentimageindex: " + Main.clientPlayer.getCurrentImageIndex(), 100, 300);
+
+				int x = 500;
+
+				for (int i = 0; i < Main.teams.size(); i++) {
+					x += 200;
+
+					int y = 200;
+
+					g2d.drawString("Team: " + Main.teams.get(i).getTeamNumber(), x, y);
+
+					for (int n = 0; n < Main.teams.get(i).getMembers().size(); n++) {
+						Player player = Main.teams.get(i).getMembers().get(n);
+
+						y += 50;
+						g2d.drawString("player: " + player.getPlayerNumber(), x, y);
+					}
+				}
+			}
+
+			paintWorldObjects(g2d);
+			paintPlayers(g2d);
+			paintEffects(g2d);
+
+			paintScore(g2d);
+			/*
+			 * g2d.fillRect(fixX(0, 1), fixY(0, 1), MapHandler.worldWidth, 50); g2d.fillRect(fixX(0, 1), fixY(0, 1), 50, MapHandler.worldHeight); g2d.fillRect(fixX(MapHandler.worldWidth - 50, 1), fixY(0, 1), 50, MapHandler.worldHeight); g2d.fillRect(fixX(0, 1), fixY(MapHandler.worldHeight - 50, 1), MapHandler.worldWidth, 50);
+			 */
+			/*
+			 * for (int i = 0; i < MapHandler.treeSpawns.size(); i++) { TreeSpawn TS = MapHandler.treeSpawns.get(i); g2d.fillRect(fixX(TS.getX(), 1), fixY(TS.getY(), 1), TS.getWidth(), TS.getHeight()); }
+			 */
+
+			setScreenAlpha(g2d, currentAlpha);
+
+			paintFrontImage(g2d);
+			paintIngameUI(g2d);
+
+		} else if (Main.state == Main.States.inMainMenu || Main.state == Main.States.inLoadingScreen) {
+			Main.mainMenu.paint(g2d);
 		}
 
-		paintWorldObjects(g2d);
-		paintPlayers(g2d);
+		// mï¿½lar musen
+		Graphics2D g2 = reverseZoom(g2d);
+		g2.drawImage(Images.imgCursor, (int) (InputHandler.onScreenMouseX), (int) (InputHandler.onScreenMouseY), 25, 25, null);
+	}
 
-		g2d.fillRect(fixX(0, 1), fixY(0, 1), MapHandler.worldWidth, 50);
-		g2d.fillRect(fixX(0, 1), fixY(0, 1), 50, MapHandler.worldHeight);
-		g2d.fillRect(fixX(MapHandler.worldWidth - 50, 1), fixY(0, 1), 50, MapHandler.worldHeight);
-		g2d.fillRect(fixX(0, 1), fixY(MapHandler.worldHeight - 50, 1), MapHandler.worldWidth, 50);
+	// mï¿½lar bilden med alla saker som ska vara framfï¿½r allt annat
+	public void paintFrontImage(Graphics2D g2d) {
+		g2d.drawImage(frontImage, 0, 0, frontImage.getWidth(), frontImage.getHeight(), null);
+		frontImageGraphics.setBackground(new Color(0, 0, 0, 0));
+		frontImageGraphics.clearRect(0, 0, frontImage.getWidth(), frontImage.getHeight());
+	}
 
-		/*
-		 * for (int i = 0; i < MapHandler.treeSpawns.size(); i++) { TreeSpawn TS = MapHandler.treeSpawns.get(i); g2d.fillRect(fixX(TS.getX(), 1), fixY(TS.getY(), 1), TS.getWidth(), TS.getHeight()); }
-		 */
+	public void paintScore(Graphics2D g2d) {
 
-		setScreenAlpha(g2d, currentAlpha);
-		paintUI(g2d);
+		int size = 30;
+
+		int x = panelWidth / 2;
+		int y = 20;
+
+		for (int i = 0; i < Main.teams.size(); i++) {
+			Team team = Main.teams.get(i);
+
+			Color color = team.getColor();
+
+			paintText(x, y, standardFont, Font.BOLD, size, team.getName() + " team: " + team.getScore() + " / " + ServerMap.scoreWinReq, color, g2d, 100000, true);
+			y += size * 2;
+		}
 
 	}
 
@@ -157,53 +229,46 @@ public class Screen extends JPanel implements Runnable {
 		}
 	}
 
-	void paintUI(Graphics2D g2d) {
+	void paintIngameUI(Graphics2D g2d) {
+		// mï¿½lar actionbaren
 		YourPlayer clientPlayer = Main.clientPlayer;
 		clientPlayer.getActionBar().paint(g2d);
 
-		g2d.drawImage(Images.imgCursor, InputHandler.scaledOnScreenMouseX, InputHandler.scaledOnScreenMouseY, 25, 25, null);
+		// mï¿½lar ikonerna som visar vilket lag som ï¿½ger tornen
+		for (int i = 0; i < MapHandler.objectiveTowerSpawns.size(); i++) {
+			MapHandler.objectiveTowerSpawns.get(i).paint(g2d);
+		}
+
+		for (int i = 0; i < Main.teams.size(); i++) {
+			Main.teams.get(i).paint(g2d);
+		}
 
 	}
 
 	void paintBackgrounds(Graphics2D g2d) {
 		Graphics2D g2 = reverseZoom(g2d); // reversrar zoomen
 
-		g2.drawImage(Images.imgMainBackground, 0, 0, panelWidth, panelHeight, null);
-
 		for (int i = 0; i < MapHandler.worldObjects.size(); i++) {
 			WorldObject obj = MapHandler.worldObjects.get(i);
+			// mo det ï¿½r ett bakgrundsobjekt eller solen
 			if (obj instanceof BackgroundObject) {
-				g2d.drawImage(obj.getImage(), fixX(obj.getX(), obj.getParalax()), fixY(obj.getY(), obj.getParalax()), obj.getWidth(), obj.getHeight(), null);
+				obj.paint(g2d);
 			}
 		}
 
-		g2.drawImage(Images.imgBackgroundGradient, 0, 0, panelWidth, panelHeight, null);
+		// g2.drawImage(Images.imgBackgroundGradient, 0, 0, panelWidth, panelHeight, null);
 		g2d.setColor(Color.black);
-		g2d.fillRect(fixX(0, 1), fixY(MapHandler.groundLevel, 1), MapHandler.worldWidth, MapHandler.worldHeight);
+		g2d.fillRect(fixX(0, 1) - 2000, fixY(MapHandler.groundLevel, 1), MapHandler.worldWidth + 4000, MapHandler.worldHeight); // mï¿½lar mï¿½rk under marken
 
 	}
 
 	void paintWorldObjects(Graphics2D g2d) {
-		
+
 		for (int i = 0; i < MapHandler.worldObjects.size(); i++) {
 			WorldObject object = MapHandler.worldObjects.get(i);
-
-			if (!(object instanceof BackgroundObject) && !(object instanceof ChoppedTree)) { // bakgrunder ska inte målas här eftersom de måste målas första av allt
-				g2d.drawImage(object.getImage(), fixX(object.getX(), object.getParalax()), fixY(object.getY(), object.getParalax()), object.getWidth(), object.getHeight(), null);
-				// Rectangle collisionBox = object.getCollisionBox();
-			} else if (object instanceof ChoppedTree) { // om det är ett chopped tree
-				Graphics2D g2 = (Graphics2D) g2d.create();
-
-				int x = fixX(object.getX(), object.getParalax());
-				int y = fixY(object.getY(), object.getParalax());
-
-				int rotX = (int) (x + object.getWidth() * 0.45);
-				int rotY = (int) (y + (object.getHeight()));
-
-				g2.rotate(((ChoppedTree) object).getRotation(), rotX, rotY);
-				g2.drawImage(object.getImage(), x, y, object.getWidth(), object.getHeight(), null);
+			if (!(object instanceof BackgroundObject)) {
+				object.paint(g2d);
 			}
-
 		}
 	}
 
@@ -212,7 +277,7 @@ public class Screen extends JPanel implements Runnable {
 
 		// reverear zoomen
 		if (!zoomOutDone) {
-			g2.scale(1 / scaleWidth, 1 / scaleHeight); // skalar allt enligt skalorna som räknades ut när spelet startades så att spelat funkar på alla skärmupplösningar
+			g2.scale(1 / scaleWidth, 1 / scaleHeight); // skalar allt enligt skalorna som rï¿½knades ut nï¿½r spelet startades sï¿½ att spelat funkar pï¿½ alla skï¿½rmupplï¿½sningar
 		} else {
 			g2.scale(1 / scaleWidthZoom, 1 / scaleHeightZoom);
 		}
@@ -220,12 +285,26 @@ public class Screen extends JPanel implements Runnable {
 		return g2;
 	}
 
+	void paintEffects(Graphics2D g2d) {
+		for (int i = 0; i < Main.effects.size(); i++) {
+			Effect efc = Main.effects.get(i);
+			efc.paint(g2d);
+		}
+	}
+
 	void paintPlayers(Graphics2D g2d) {
 		for (int i = 0; i < Main.players.size(); i++) {
 			Player player = Main.players.get(i);
 			player.paint(g2d);
-
 		}
+	}
+
+	public static Graphics2D setAlpha(Graphics2D g2d, float alpha) {
+
+		AlphaComposite alcom = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
+		g2d.setComposite(alcom);
+
+		return g2d;
 	}
 
 	public static void setScreenAlpha(Graphics2D g2d, float alpha) {
@@ -244,7 +323,7 @@ public class Screen extends JPanel implements Runnable {
 		if (fadeOut) {
 			if (currentAlpha < 1) {
 				currentAlpha += 0.03;
-				if (currentAlpha >= 1) { // när den är klar
+				if (currentAlpha >= 1) { // nï¿½r den ï¿½r klar
 					currentAlpha = 1;
 
 					zoomOutDone = !zoomOutDone;
@@ -255,7 +334,7 @@ public class Screen extends JPanel implements Runnable {
 		} else {
 			if (currentAlpha > 0) {
 				currentAlpha -= 0.03;
-				if (currentAlpha < 0) { // när den är klar
+				if (currentAlpha < 0) { // nï¿½r den ï¿½r klar
 					currentAlpha = 0;
 				}
 			}
@@ -284,7 +363,7 @@ public class Screen extends JPanel implements Runnable {
 		return newY;
 	}
 
-	// hämtar en texts bredd
+	// hï¿½mtar en texts bredd
 	public static int getTextWidth(Font font, String text) {
 		int width = 0;
 
@@ -303,31 +382,53 @@ public class Screen extends JPanel implements Runnable {
 		return height;
 	}
 
-	// används för att på ett enklare sätt skriva ut text på skärmen. Denna metod används tillsammans med wrapLines()
-	// som gör att texten hamnar på en ny rad om textens bredd överstrider 'lineWrapWidth'
-	static void paintText(int x, int y, String fontname, int style, int size, String text, Color color, Graphics2D g, int lineWrapWidth, boolean centerText) {
-		Font oldFont = g.getFont();
-		Font font = new Font(fontname, style, size);
+	// anvï¿½nds fï¿½r att pï¿½ ett enklare sï¿½tt skriva ut text pï¿½ skï¿½rmen. Denna metod anvï¿½nds tillsammans med wrapLines()
+	// som gï¿½r att texten hamnar pï¿½ en ny rad om textens bredd ï¿½verstrider 'lineWrapWidth'
+	public static void paintText(int x, int y, Font font, int style, int size, String text, Color color, Graphics2D g, int lineWrapWidth, boolean centerText) {
 
-		int textWidth = getTextWidth(font, text);
-		if (centerText) {
-			x = x - textWidth / 2;
-		}
+		font = font.deriveFont(style, size);
 
 		g.setFont(font);
 		g.setColor(color);
 
 		// wrapLines() delar upp texten i olika rader
-		String[] lines = wrapLines(text, font, size, lineWrapWidth);
+		String[] lines = wrapLines(text, font, lineWrapWidth);
 
+		int widestLine = 0;
+
+		// hittar den bredaste raden
 		for (int i = 0; i < lines.length; i++) {
-			g.drawString(lines[i], x, y + size + size * i);
+			int currentLineWidth = getTextWidth(font, lines[i]);
+
+			if (currentLineWidth > widestLine) {
+				widestLine = currentLineWidth;
+			}
+
 		}
-		g.setFont(oldFont);
+
+		int widestLineXOffset = 0;
+
+		if (centerText) {
+			widestLineXOffset = widestLine / 2;
+		}
+
+		// mï¿½lar ut varje rad fï¿½r sig
+		for (int i = 0; i < lines.length; i++) {
+			int textWidth = getTextWidth(font, lines[i]);
+
+			int tmpX = x;
+			// centerar raden
+			if (centerText) {
+				// placerar texten rï¿½tt sï¿½ att varje rad centeras
+				tmpX = x + widestLineXOffset - textWidth / 2 - widestLine / 2;
+			}
+			g.drawString(lines[i], tmpX, y + size + size * i);
+		}
+
 	}
 
-	// används för att dela in text i flera rader
-	static String[] wrapLines(String text, Font font, int size, int lineWrapWidth) {
+	// anvï¿½nds fï¿½r att dela in text i flera rader
+	public static String[] wrapLines(String text, Font font, int lineWrapWidth) {
 		String strReturn[] = null;
 
 		String buildString = "";
@@ -336,19 +437,19 @@ public class Screen extends JPanel implements Runnable {
 		String[] words = text.split(" ");
 
 		for (int i = 0; i < words.length; i++) {
-			// om ett ord börjar på '#' ska raden brytas där
+			// om ett ord bï¿½rjar pï¿½ '#' ska raden brytas dï¿½r
 			if (words[i].startsWith("#")) {
 				nextLineString = " ";
 			}
 
-			// räknar ut bredden på texten
+			// rï¿½knar ut bredden pï¿½ texten
 			AffineTransform affinetransform = new AffineTransform();
 			FontRenderContext frc = new FontRenderContext(affinetransform, true, true);
 			int textWidth = (int) (font.getStringBounds(nextLineString, frc).getWidth());
 
-			// kollar om bredden är överstridigt radbredden
+			// kollar om bredden ï¿½r ï¿½verstridigt radbredden
 			if (textWidth > lineWrapWidth) {
-				buildString += "#"; // '#' visar att det ska vara en ny rad där
+				buildString += "#"; // '#' visar att det ska vara en ny rad dï¿½r
 				nextLineString = "";
 			}
 
@@ -362,31 +463,29 @@ public class Screen extends JPanel implements Runnable {
 		return strReturn;
 	}
 
-	// skapar framen, detta körs först av allt
+	// skapar framen, detta kï¿½rs fï¿½rst av allt
 	static void createFrame() {
 		Images.initImages(); // laddar in bilderna
 
-		// Toolkit tk = Toolkit.getDefaultToolkit();
-
-		// hittar skalan för skärmen så det kan skalas senare i paint metoden
+		// hittar skalan fï¿½r skï¿½rmen sï¿½ det kan skalas senare i paint metoden
 		scaleWidth = screenWidth / (Screen.panelWidth * 1.0);
 		scaleHeight = screenHeight / (Screen.panelHeight * 1.0);
 
-		// gör så att muspekaren blir en bild
-		// Point hotspot = new Point(1, 1); // sätter 'hotspot' för crosshairet, (pointen där mus-event ska ske), i detta fall ska det vara i mitten av muspekaren och bilden är 34x34
+		// gï¿½r sï¿½ att muspekaren blir en bild
+		// Point hotspot = new Point(1, 1); // sï¿½tter 'hotspot' fï¿½r crosshairet, (pointen dï¿½r mus-event ska ske), i detta fall ska det vara i mitten av muspekaren och bilden ï¿½r 34x34
 		// Cursor myCursor = tk.createCustomCursor(Images.imgCursor, hotspot, "cursor");
 
 		// skapar framen
 		frame = new JFrame();
 		frame.add(new Screen());
-		frame.setTitle("Tessa");
-		frame.setUndecorated(false);
+		frame.setTitle("Warden");
+		frame.setUndecorated(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setSize(screenWidth, screenHeight);
 		frame.setVisible(true);
 		frame.setCursor(frame.getToolkit().createCustomCursor(new BufferedImage(3, 3, BufferedImage.TYPE_INT_ARGB), new Point(0, 0), "null"));
 
-		// ändrar programmets ikon
+		// ï¿½ndrar programmets ikon
 		ImageIcon imgIcon = new ImageIcon(Images.class.getClassLoader().getResource("images/icon.png"));
 		Image img = imgIcon.getImage();
 		frame.setIconImage(img);
@@ -398,12 +497,15 @@ public class Screen extends JPanel implements Runnable {
 	public void run() {
 
 		while (true) {
+
 			tick += sleep;
 			singleTick++;
-			// om man är inne i spelet eller i inGame-menyn
-			if (state == States.inGame || state == States.inGameMenu) {
-				noMessageReceivedFor = noMessageReceivedFor + sleep; // räknar tid
+
+			// om man ï¿½r inne i spelet eller i inGame-menyn
+			if (Main.state == Main.States.inGame) {
+				noMessageReceivedFor = noMessageReceivedFor + sleep; // rï¿½knar tid
 			}
+
 			Main.update();
 			repaint();
 			try {
@@ -413,5 +515,28 @@ public class Screen extends JPanel implements Runnable {
 			}
 
 		}
+	}
+
+	public static void initFonts() {
+
+		InputStream is = Screen.class.getClassLoader().getResourceAsStream("fonts/Cinzel-Bold.ttf");
+
+		try {
+			standardFont = Font.createFont(Font.TRUETYPE_FONT, is);
+		} catch (FontFormatException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}
+
+	public static void init() {
+		Toolkit tk = Toolkit.getDefaultToolkit();
+
+		// hï¿½mtar datorns skï¿½rmstorlek
+		Screen.screenWidth = (int) (tk.getScreenSize().getWidth());
+		Screen.screenHeight = (int) (tk.getScreenSize().getHeight());
+
+		initFonts();
 	}
 }

@@ -1,12 +1,14 @@
 package client.objects;
 
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.net.URL;
 
 import client.Client;
-import client.MapHandler;
+import client.Screen;
 import client.handlers.Images;
+import client.handlers.MapHandler;
 import client.handlers.Sound;
 
 public class TreeSpawn {
@@ -21,7 +23,7 @@ public class TreeSpawn {
 	private Tree tree;
 	private ChoppedTree choppedTree;
 	private Stump stump;
-	
+
 	private URL fallingSound;
 
 	public TreeSpawn(int x, int y, int width, int height, boolean hasTree) {
@@ -31,18 +33,19 @@ public class TreeSpawn {
 		this.height = height;
 		this.hasTree = hasTree;
 
-		tree = new Tree(x, y, width, height, 1, "objects/tree.png", this, -1);
+		tree = new Tree(x, y, width, height, 1, "objects/tree.png", this, -1, 0);
 
+		// höjden på det nedfällda trädet
 		int choppedTreeHeight = (int) (height * 0.875);
-		choppedTree = new ChoppedTree(x, y, width, choppedTreeHeight, 1, "objects/choppedTree.png", this, -1);
+		choppedTree = new ChoppedTree(x, y, width, choppedTreeHeight, 1, "objects/choppedTree.png", this, -1, 0);
 
+		// stubbens storlek
 		int stumpHeight = (int) (height * 0.125);
 		int stumpY = y + height - stumpHeight;
-		stump = new Stump(x, stumpY, width, stumpHeight, 1, "objects/stump.png", -1);
+		stump = new Stump(x, stumpY, width, stumpHeight, 1, "objects/stump.png", -1, 0);
 
-		fallingSound = Sound.readSoundFile("sounds/objects/TreeFall.wav");
-		
-		
+		fallingSound = Sound.readSoundFile("sounds/objects/TreeFall.wav"); // ljudet som kommer när man fäller ett träd
+
 		if (hasTree) {
 			spawnTree();
 		} else {
@@ -75,23 +78,21 @@ public class TreeSpawn {
 			MapHandler.worldObjects.remove(index);
 		}
 
-		// lägger till dem först i arrayen så de hamnar bakom allt 
+		// lägger till dem först i arrayen så de hamnar bakom allt
 		MapHandler.addWorldObjectToFront(tree);
 		choppedTree.setRotation(0);
 		choppedTree.reset();
 
 	}
+
 	// När trädet fälls
 	public void despawnTree() {
-		
-		Sound.play(fallingSound, getX(), getY(), 1f);
-		
-		int index = MapHandler.worldObjects.indexOf(tree);
-		if (index != -1) {
-			MapHandler.worldObjects.remove(index);
-		}
 
-		// lägger till dem först i arrayen så de hamnar bakom allt :)
+		Sound.play(fallingSound, getX(), getY(), 1f);
+
+		MapHandler.worldObjects.remove(tree); // tar bort trädet
+
+		// lägger till dem först i arrayen så de hamnar framför allt
 		MapHandler.addWorldObjectToFront(stump);
 		MapHandler.addWorldObjectToFront(choppedTree);
 	}
@@ -145,21 +146,29 @@ public class TreeSpawn {
 	}
 
 	public void hideChoppedTree() {
-		int index = MapHandler.worldObjects.indexOf(choppedTree);
-		if (index != -1) {
-			MapHandler.worldObjects.remove(index);
-		}
+		MapHandler.worldObjects.remove(choppedTree);
 	}
 
 	public class Tree extends InteractableWorldObject {
 
 		TreeSpawn treeSpawn; // vilken spawn detta träd tillhör
 
-		public Tree(int x, int y, int width, int height, double paralax, String imagePath, TreeSpawn treeSpawn, int objectId) {
-			super(x, y, width, height, paralax, imagePath, objectId);
-			Image highlight = Images.readImageFromPath("objects/tree_highlight.png");
-			setImageHighlight(highlight);
+		public Tree(int x, int y, int width, int height, double paralax, String imagePath, TreeSpawn treeSpawn, int objectId, int versionType) {
+			super(x, y, width, height, paralax, imagePath, objectId, versionType);
+
 			this.treeSpawn = treeSpawn;
+			interactionTime = 2000;
+
+			setInteractionSound(Sound.readSoundFile("sounds/objects/treeChop.wav"));
+			setInteractionSoundInterval(900);
+
+			// sätter info om var infoboxen ska sitta
+			setInfoText("Hold 'E' to chop down this tree");
+			
+		}
+
+		public void initHighlightImage() {
+
 		}
 
 		@Override
@@ -173,7 +182,26 @@ public class TreeSpawn {
 		}
 
 		@Override
-		public void completeInteraction() {
+		public void onRemove() {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public Image getHighlightImage() {
+			Image highlight = Images.readImageFromPath("objects/treeHighlight.png");
+			return highlight;
+		}
+
+		@Override
+		public void uniqueUpdate() {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void uniqueCompleteInteraction() {
+			// TODO Auto-generated method stub
 			int spawnIndex = MapHandler.treeSpawns.indexOf(treeSpawn);
 
 			treeSpawn.sendCutTree(spawnIndex); // skickar till alla andra klienter att detta träd ska bort
@@ -182,9 +210,9 @@ public class TreeSpawn {
 		}
 
 		@Override
-		public void onRemove() {
+		public void uniqueOnStartInteraction() {
 			// TODO Auto-generated method stub
-			
+
 		}
 
 	}
@@ -198,8 +226,8 @@ public class TreeSpawn {
 		double rotationAcceleration = 0.0002;
 		TreeSpawn treeSpawn;
 
-		public ChoppedTree(int x, int y, int width, int height, double paralax, String imagePath, TreeSpawn treeSpawn, int objectId) {
-			super(x, y, width, height, paralax, imagePath, objectId);
+		public ChoppedTree(int x, int y, int width, int height, double paralax, String imagePath, TreeSpawn treeSpawn, int objectId, int versionType) {
+			super(x, y, width, height, paralax, imagePath, objectId, versionType);
 			this.treeSpawn = treeSpawn;
 		}
 
@@ -214,6 +242,20 @@ public class TreeSpawn {
 				treeSpawn.hideChoppedTree();
 			}
 
+		}
+
+		@Override
+		public void paint(Graphics2D g2d) {
+			Graphics2D g2 = (Graphics2D) g2d.create();
+
+			int x = Screen.fixX(getX(), getParalax());
+			int y = Screen.fixY(getY(), getParalax());
+
+			int rotX = (int) (x + getWidth() * 0.45);
+			int rotY = (int) (y + (getHeight()));
+
+			g2.rotate(getRotation(), rotX, rotY);
+			g2.drawImage(getImage(), x, y, getWidth(), getHeight(), null);
 		}
 
 		@Override
@@ -236,15 +278,15 @@ public class TreeSpawn {
 		@Override
 		public void onRemove() {
 			// TODO Auto-generated method stub
-			
+
 		}
 
 	}
 
 	public class Stump extends WorldObject {
 
-		public Stump(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-			super(x, y, width, height, paralax, imagePath, objectId);
+		public Stump(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+			super(x, y, width, height, paralax, imagePath, objectId, versionType);
 		}
 
 		@Override
@@ -261,7 +303,7 @@ public class TreeSpawn {
 		@Override
 		public void onRemove() {
 			// TODO Auto-generated method stub
-			
+
 		}
 	}
 

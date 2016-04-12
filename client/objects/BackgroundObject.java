@@ -4,9 +4,11 @@ import java.awt.Rectangle;
 
 public class BackgroundObject extends WorldObject {
 
-	public BackgroundObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	public BackgroundObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
 	}
+
+
 
 	@Override
 	public Rectangle createCollisionBox() {
@@ -17,12 +19,12 @@ public class BackgroundObject extends WorldObject {
 	@Override
 	public void update() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void onRemove() {
 		// TODO Auto-generated method stub
-		
+
 	}
 }

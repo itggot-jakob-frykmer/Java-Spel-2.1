@@ -5,16 +5,20 @@
  */
 package client.handlers;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.image.BufferedImage;
 
 import javax.swing.ImageIcon;
 
+import client.objects.OpenChest;
+
 public class Images {
 
-	public static Image imgMainBackground;
-	public static Image imgBackgroundGradient;
 	public static Image imgCursor;
 	static Image imgSign;
+
 
 	static String[] acceptedImgExtensions = { "png", "jpg", "jpeg", "gif" };
 
@@ -26,21 +30,20 @@ public class Images {
 		try {
 			ImageIcon imgIcon;
 
-			imgIcon = new ImageIcon(Images.class.getClassLoader().getResource("images/backgrounds/background0.png"));
-			imgMainBackground = imgIcon.getImage();
-
-			imgIcon = new ImageIcon(Images.class.getClassLoader().getResource("images/backgrounds/background2.png"));
-			imgBackgroundGradient = imgIcon.getImage();
-
 			imgIcon = new ImageIcon(Images.class.getClassLoader().getResource("images/sign.jpg"));
 			imgSign = imgIcon.getImage();
 
 			imgIcon = new ImageIcon(Images.class.getClassLoader().getResource("images/ui/cursor.png"));
 			imgCursor = imgIcon.getImage();
 
+			
+			OpenChest.initImages();
+			
 		} catch (NullPointerException e) {
 			e.printStackTrace();
 		}
+		
+		
 		System.out.println("Images done");
 
 	}
@@ -79,6 +82,18 @@ public class Images {
 		int displayHeight = (int) (displayWidth * heightToWidth);
 
 		return displayHeight;
+	}
+
+	public static Image setOpacity(Image img, float opacity) {
+
+		BufferedImage bimage = new BufferedImage(img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+
+		Graphics2D bGr = bimage.createGraphics();
+
+		bGr.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+		bGr.drawImage(img, 0, 0, null);
+		
+		return bimage;
 	}
 
 	// läser in alla bilder från en mapp

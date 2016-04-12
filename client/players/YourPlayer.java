@@ -3,26 +3,33 @@ package client.players;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.net.URL;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import client.Client;
-import client.MapHandler;
 import client.Screen;
-import client.objects.InteractableWorldObject;
+import client.handlers.InputHandler;
+import client.handlers.MapHandler;
+import client.handlers.Sound;
 import client.objects.Platform;
 import client.objects.WorldObject;
+import client.objects.interactableWorldObjects.InteractableWorldObject;
+import client.players.actionbar.ActionBar;
 import client.players.actionbar.DisplayAbility;
+import client.players.spells.AuraSpell;
+import client.players.spells.CastSpell;
+import client.players.spells.Spell;
 
 public class YourPlayer extends Player {
 
-	// private int movingSpeed = 3;
+	private double flyingSpeed = 2;
 	private double currentMovingSpeed = 0;
 	private double movingAcceleration = 0.09;
 	private double movingDeacceleration = 0.025;
 	private double maxMovingSpeed = 3;
 
-	private double startJumpingSpeed = 5;
+	private double startJumpingSpeed = 6;
 	private double currentJumpingSpeed = startJumpingSpeed;
 	private double minJumpingSpeed = 0;
 
@@ -38,17 +45,23 @@ public class YourPlayer extends Player {
 	private AtomicBoolean doubleJumpReady; // denna är av typen atomic boolean för att kunna skapa en referens till variablen
 	private AtomicInteger doubleJumpCooldown = new AtomicInteger(5000);
 	private AtomicInteger doubleJumpCooldownCounter = new AtomicInteger(0);
-	private double startDoubleJumpingSpeed = 6.5;
+	private double startDoubleJumpingSpeed = 7;
 
-	private int onScreenX = 550;
-	private int onScreenY = 650;
+	private AtomicBoolean doubleJumpUnlocked = new AtomicBoolean(false);
+	private AtomicBoolean dashUnlocked = new AtomicBoolean(false);
+
+	public static int onScreenX = 0;
+	public static int onScreenY = 0;
 
 	private double dashAcceleration = 0.2;
 	private int startDashSpeed = 20;
 	private double currentDashSpeed = 0;
 
-	private int regHealthDelay = 1000;
-	private int regHealthAmount = 1;
+	private int regHealthDelay = 800;
+	private int regHealthAmount = 2;
+
+	private int regEnergyDelay = 200;
+	private int regEnergyAmount = 3;
 
 	private AtomicInteger dashCooldown = new AtomicInteger(20000);
 	private AtomicInteger dashCooldownCounter = new AtomicInteger(0);
@@ -67,6 +80,8 @@ public class YourPlayer extends Player {
 	private int cameraDelayMax = 20;
 	private double cameraDelaySpeed = 0.2;
 
+	private boolean canFly = false;
+
 	private ActionBar actionBar;
 
 	private Color interactionColor;
@@ -75,13 +90,27 @@ public class YourPlayer extends Player {
 
 	private AtomicInteger numWood = new AtomicInteger(0); // hur mycket wood man har på sig
 
+	private AtomicInteger numMinerals = new AtomicInteger(0); // hur mycket minerals man har på sig
+
+	private int spellCounter = 0;
+
+	private int respawnDelay = 5000;
+	private int respawnDelayCounter = 0;
+
 	public YourPlayer(int playerNumber, int characterType) throws NoSuchMethodException, SecurityException {
 		super(playerNumber, characterType);
 
 		doubleJumpReady = new AtomicBoolean(true);
 		dashReady = new AtomicBoolean(true);
 
-		actionBar = new ActionBar(0, 1, 2, this);
+		actionBar = new ActionBar();
+
+		pickUpMinerals(100);
+		pickUpWood(100);
+
+		onScreenX = Screen.panelWidth / 2 - getWidth() / 2;
+		onScreenY = 550;
+
 	}
 
 	public void move(double xMove, double yMove) {
@@ -100,6 +129,13 @@ public class YourPlayer extends Player {
 		setX(oldX);
 		setY(oldY);
 
+		// gör så man inte kan gå för långt ut på sidorna
+		if (getX() < 0) {
+			setX(0);
+		} else if (getX() + getWidth() > MapHandler.worldWidth) {
+			setX(MapHandler.worldWidth - getWidth());
+		}
+
 		sendCoords();
 
 	}
@@ -112,6 +148,9 @@ public class YourPlayer extends Player {
 		sendIsDashing();
 		sendImageChangeSpeed();
 		sendHealth();
+		sendEnergy();
+		sendWeaponType();
+		sendShieldInfo();
 	}
 
 	public void sendCoords() {
@@ -120,6 +159,7 @@ public class YourPlayer extends Player {
 		Client.sendData("#SPC", message);
 	}
 
+	// räknar ut hur ofta ens spring-bild ska bytas baserat på hur snabbt man rör sig
 	public void calculateCurrentImageChange() {
 		int imageChangeDelay;
 		// om man rör sig
@@ -139,6 +179,7 @@ public class YourPlayer extends Player {
 		setImageChangeDelay(imageChangeDelay);
 	}
 
+	// uppdaterar sin dash
 	public void updateDash() {
 		if (currentDashSpeed > 0) {
 			currentDashSpeed -= dashAcceleration;
@@ -233,100 +274,136 @@ public class YourPlayer extends Player {
 	public void update() {
 
 		delayCounter += Screen.sleep;
-
 		checkCollision();
-
 		calculateCurrentImageChange();
 		commonUpdate();
 		updateInteraction();
 		updateCooldowns();
 		updateDash();
 		updateCameraDelay();
+		updateRespawn();
 
 		setMoving(false);
-		// så länge man rör sig åt något håll
-		if (isMovingLeft() || isMovingRight()) {
 
-			int direction = 1; // 1 = right, -1 = left
+		if (isAlive()) {
+			// så länge man rör sig åt något håll
+			if (isMovingLeft() || isMovingRight()) {
+
+				int direction = 1; // 1 = right, -1 = left
+
+				if (isMovingLeft()) {
+					direction = -1;
+				}
+
+				currentMovingSpeed += movingAcceleration * direction;
+
+				// om man har gått över max hastigheten
+				if (Math.abs(currentMovingSpeed) > maxMovingSpeed) {
+					currentMovingSpeed = maxMovingSpeed * direction;
+				}
+
+			} else { // om man ska deaccellerara
+				if (currentMovingSpeed > 0) {
+					currentMovingSpeed -= movingDeacceleration;
+				}
+				if (currentMovingSpeed < 0) {
+					currentMovingSpeed += movingDeacceleration;
+				}
+				if (Math.abs(currentMovingSpeed) < movingDeacceleration) {
+					currentMovingSpeed = 0;
+				}
+
+			}
 
 			if (isMovingLeft()) {
-				direction = -1;
+				setMoving(true);
+				setFacingLeft(true);
+			} else if (isMovingRight()) {
+				setMoving(true);
+				setFacingLeft(false);
 			}
 
-			currentMovingSpeed += movingAcceleration * direction;
+			double totalMovingSpeed = currentMovingSpeed + currentDashSpeed;
 
-			// om man har gått vöer max hastigheten
-			if (Math.abs(currentMovingSpeed) > maxMovingSpeed) {
-				currentMovingSpeed = maxMovingSpeed * direction;
+			move(totalMovingSpeed, 0);
+
+			// om man har något som gör att man kan flyga, exempelvis när man står vid en stege
+			if (canFly) {
+				if (isMovingUp()) {
+					move(0, -flyingSpeed);
+				}
+				if (isFalling()) { // bara om man är i luften kan man röra sig neråt
+					if (isMovingDown()) {
+						move(0, flyingSpeed);
+					}
+				}
 			}
-		} else { // om man ska deaccellerara
-			if (currentMovingSpeed > 0) {
-				currentMovingSpeed -= movingDeacceleration;
+
+			if (godMode) {
+				if (isMovingUp()) {
+					move(0, -3);
+				}
+				if (isMovingDown()) {
+					move(0, 3);
+				}
 			}
-			if (currentMovingSpeed < 0) {
-				currentMovingSpeed += movingDeacceleration;
+
+			// om man faller och inte hoppar och inte är i godmode ska man falla neråt
+			if (isFalling() && !isJumping() && !godMode && !canFly) {
+				lengthFallen += currentFallingSpeed;
+				if (currentFallingSpeed < maxFallingSpeed) {
+					currentFallingSpeed += fallingAcceleration;
+
+				}
+				move(0, currentFallingSpeed);
 			}
-			if (Math.abs(currentMovingSpeed) < movingDeacceleration) {
-				currentMovingSpeed = 0;
+
+			if (isJumping()) {
+				if (currentJumpingSpeed > minJumpingSpeed) { // om man ska fortsätta hoppa
+					currentJumpingSpeed -= fallingAcceleration;
+					move(0, -currentJumpingSpeed);
+				} else {
+					stopJumping();
+				}
 			}
-		}
 
-		if (isMovingLeft()) {
-			setMoving(true);
-			setFacingLeft(true);
-		}
-
-		else if (isMovingRight()) {
-			setMoving(true);
-			setFacingLeft(false);
-		}
-
-		double totalMovingSpeed = currentMovingSpeed + currentDashSpeed;
-
-		move(totalMovingSpeed, 0);
-
-		if (godMode) {
-			if (isMovingUp()) {
-				move(0, -3);
+			// gör så man får nytt liv över tid
+			if (delayCounter % regHealthDelay == 0) {
+				heal(regHealthAmount);
 			}
-			if (isMovingDown()) {
-				move(0, 3);
+
+			// gör så man får ny energy över tid
+			if (delayCounter % regEnergyDelay == 0) {
+				addEnergy(regEnergyAmount);
 			}
-		}
-
-		// om man faller och inte hoppar och inte är i godmode ska man falla neråt
-		if (isFalling() && !isJumping() && !godMode) {
-			lengthFallen += currentFallingSpeed;
-			if (currentFallingSpeed < maxFallingSpeed) {
-				currentFallingSpeed += fallingAcceleration;
-
-			}
-			move(0, currentFallingSpeed);
-		}
-
-		if (isJumping()) {
-			if (currentJumpingSpeed > minJumpingSpeed) { // om man ska sluta hoppa
-				currentJumpingSpeed -= fallingAcceleration;
-				move(0, -currentJumpingSpeed);
-			} else {
-				stopJumping();
-			}
-		}
-
-		// gör så man får nytt liv över tid
-		if (delayCounter % regHealthDelay == 0) {
-			heal(regHealthAmount);
-
 		}
 
 		sendIsFalling();
 		sendIsMoving();
-		sendIsFacingLeft();
 		sendImageChangeSpeed();
-		sendHealth();
 		sendIsDashing();
 
 		actionBar.update();
+	}
+
+	// plockar upp vapen eller sätter samma om man redan har
+	public void pickUpWeapon() {
+		int level = 0;
+
+		if (getWeapon() != null) {
+			level = getWeapon().getLevel();
+		}
+
+		pickUpWeapon(level);
+	}
+
+	public void pickUpWeapon(int level) {
+		int versionType = getTeam().getTeamNumber();
+		// int versionType = 0;
+
+		Weapon weapon = new Weapon(versionType, level, this);
+		setWeapon(weapon);
+		sendWeaponType();
 	}
 
 	public void checkCollision() {
@@ -367,26 +444,47 @@ public class YourPlayer extends Player {
 			lengthFallen = 0;
 
 		}
+
 	}
 
 	public void startJump() {
-		// om man inte faller eller hoppar eller om doubleJump är redo
-		if ((!isJumping() && !isFalling()) || doubleJumpReady.get()) {
-			// om man redan hoppar eller faller används doubleJump
-			if (isJumping() || isFalling()) { // när man använder double jump
-				doubleJumpReady.set(false);
-				currentJumpingSpeed = startDoubleJumpingSpeed;
-			} else { // när man hoppar vanligt
-				currentJumpingSpeed = startJumpingSpeed;
+		// om man inte faller eller hoppar eller om doubleJump är redo och upplåst
+		if ((!isJumping() && !isFalling()) || (doubleJumpReady.get() && doubleJumpUnlocked.get())) {
+
+			if (!getCanFly()) { // om man flyger kan man inte hoppa
+				// om man redan hoppar eller faller används doubleJump
+				if (isJumping() || isFalling()) { // när man använder double jump
+
+					// om man har låst upp doubleJump
+					if (doubleJumpUnlocked.get()) {
+						doubleJumpReady.set(false);
+						currentJumpingSpeed = startDoubleJumpingSpeed;
+						sendDoubleJump();
+						playJumpSound();
+					}
+				} else { // när man hoppar vanligt
+					currentJumpingSpeed = startJumpingSpeed;
+				}
+
+				setJumping(true);
+				stopFalling();
 			}
-			setJumping(true);
-			stopFalling();
 		}
 
 	}
 
+	public void sendDoubleJump() {
+		Client.sendData("#SENDDOUBLEJUMPEFFECT", "");
+		createDoubleJumpEffect();
+	}
+
 	public void stopJumping() {
 		setJumping(false);
+	}
+
+	public void setHealth(int health) {
+		super.setHealth(health);
+		sendHealth();
 	}
 
 	public void heal(int amount) {
@@ -395,8 +493,28 @@ public class YourPlayer extends Player {
 	}
 
 	public void takeDamage(int damage) {
-		int health = getHealth() - damage;
-		setHealth(health);
+
+		// om man har något skydd på sin sköld tar man ingen skada men en charge tas bort
+		if (getFireShield().getNumCharges() > 0) {
+			getFireShield().consumeCharge();
+		} else {
+
+			int health = getHealth() - damage;
+			setHealth(health);
+
+			stopInteraction();
+
+			// när man dör
+			if (health <= 0) {
+				sendDropAllItems();
+
+				// halverar allt man har på sig
+				setNumWood((int) (Math.round(getNumWood() / 2.0)));
+				setNumMinerals((int) (Math.round(getNumMinerals() / 2.0)));
+				setNumHealthPotions((int) (Math.round(getNumHealthPotions() / 2.0)));
+				setNumEnergyPotions((int) (Math.round(getNumEnergyPotions() / 2.0)));
+			}
+		}
 	}
 
 	public void updateCooldowns() {
@@ -428,8 +546,9 @@ public class YourPlayer extends Player {
 		}
 
 		if (interacting) {
-
 			timeInteracted += Screen.sleep;
+
+			interactionObject.updateInteraction();
 
 			// om man har interactat så länge som krävs för detta objekt
 			if (timeInteracted >= interactionObject.getInteractionTime()) {
@@ -438,6 +557,30 @@ public class YourPlayer extends Player {
 			}
 
 		}
+
+	}
+
+	// uppdatar timern för att spawna om
+	public void updateRespawn() {
+		if (!isAlive()) {
+			respawnDelayCounter += Screen.sleep;
+
+			if (respawnDelayCounter >= respawnDelay) {
+				respawn();
+				respawnDelayCounter = 0;
+			}
+		} else {
+			respawnDelayCounter = 0;
+		}
+	}
+
+	public void respawn() {
+		setStartPosition();
+		setHealth(100);
+	}
+
+	public boolean getCanFly() {
+		return canFly;
 	}
 
 	public int getOnScreenX() {
@@ -456,20 +599,39 @@ public class YourPlayer extends Player {
 		this.onScreenY = onScreenY;
 	}
 
-	// tar emot information från servern om var man ska spawna
-	public void setStartPos(String message) {
-		String[] pos = message.split("&");
+	public void sendShieldInfo() {
+		Client.sendData("#SENDSHIELDINFO", getFireShield().getNumCharges() + "");
+	}
 
-		int x = Integer.parseInt(pos[0]);
-		int y = Integer.parseInt(pos[1]);
-		setX(x);
-		setY(y);
+	// skickar information om vilken vapen man har
+	public void sendWeaponType() {
+
+		Weapon weapon = getWeapon();
+		String message = "";
+
+		if (weapon == null) {
+			message = "none";
+		} else {
+			message = weapon.getVersionType() + "@" + weapon.getLevel();
+		}
+
+		Client.sendData("#SENDWEAPONTYPE", message);
+
+	}
+
+	// när man dör skickas information om hur mycket saker som ska droppas på marken
+	public void sendDropAllItems() {
+		Client.sendData("SENDDROPALLITEMS", getX() + "@" + getY() + "@" + getNumWood() + "@" + getNumMinerals() + "@" + getNumHealthPotions() + "@" + getNumEnergyPotions());
+	}
+
+	// skickar till alla andra att man skjuter en spell
+	public void sendCastSpell(Spell spell) {
+		Client.sendData("#SENDCASTSPELL", spell.getStartX() + "@" + spell.getStartY() + "@" + spell.getMovingDirection() + "@" + spell.getId() + "@" + spell.getType());
 	}
 
 	public void sendIsDashing() {
 		int dashing = (isDashing()) ? 1 : 0;
 		Client.sendData("#SNDISDASHING", dashing + "");
-
 	}
 
 	public void sendIsFalling() {
@@ -495,6 +657,10 @@ public class YourPlayer extends Player {
 		Client.sendData("#SNDHEALTH", getHealth() + "");
 	}
 
+	public void sendEnergy() {
+		Client.sendData("#SENDENERGY", getEnergy() + "");
+	}
+
 	public double getFallingSpeed() {
 		return currentFallingSpeed;
 	}
@@ -509,6 +675,21 @@ public class YourPlayer extends Player {
 
 	public boolean isHoldingInteract() {
 		return holdingInteract;
+	}
+
+	public void setFacingLeft(boolean facingLeft) {
+
+		boolean changed = false;
+		// om den byter
+		if (isFacingLeft() != facingLeft) {
+			changed = true;
+		}
+
+		super.setFacingLeft(facingLeft);
+
+		if (changed) {
+			sendIsFacingLeft();
+		}
 	}
 
 	public boolean isInteracting() {
@@ -532,9 +713,8 @@ public class YourPlayer extends Player {
 	}
 
 	@Override
-	public void paint(Graphics2D g2d) {
+	public void paintCharacter(Graphics2D g2d) {
 		g2d = (Graphics2D) g2d.create();
-		getHealthBar().paint(g2d);
 
 		// om karaktären går åt höger ska bilden spelgas, detta görs genom att bredden görs negativ och x värdet flyttas lika långt som karaktärens bredd
 		int modWidth = 1;
@@ -552,6 +732,9 @@ public class YourPlayer extends Player {
 		} else {
 			g2d.drawImage(getImage(), getOnScreenX() - modX, getOnScreenY(), getWidth() * modWidth, getHeight(), null);
 
+			if (Screen.devMode) {
+				g2d.drawRect(Screen.fixX(getCollisionBox().x, 1), Screen.fixY(getCollisionBox().y, 1), getCollisionBox().width, getCollisionBox().height);
+			}
 			// målar progress cirklen för en interaction
 			if (interacting) {
 
@@ -582,36 +765,139 @@ public class YourPlayer extends Player {
 				int deg = (int) (completePercent * 360);
 
 				g2d.drawArc(getOnScreenX() + 80, getOnScreenY(), 45, 45, 90, -deg);
-			}
 
+			}
 		}
 	}
 
 	public void castSpell(int type) {
-		Spell spell = new Spell(getX(), getY(), type);
+
+		if (isAlive()) {
+			// int direction = (isFacingLeft()) ? -1 : 1;
+
+			double direction = InputHandler.getMouseAngle();
+
+			Spell spell = null;
+
+			// om denna spellens ID finns i listan för cast spells. Alltså en spell som ska skjutas iväg
+			if (Spell.castSpells.contains(type)) {
+				spell = new CastSpell(getX(), getY(), type, spellCounter, direction, this);
+			}
+			// om denna spellens ID finns i listan för aura spells. Alltså en spell som läggs på marken
+			else if (Spell.auraSpells.contains(type)) {
+				spell = new AuraSpell(getX(), getY(), type, spellCounter, 0, this);
+			} else if (type == Spell.fireShieldId) {
+				getFireShield().renewShield();
+			} else if (type == Spell.fanOfKnivesId) { // fan of knives ska skjuta ut massor med knivar åt alla håll
+
+				double centerAngleOffset = Math.PI / 16;
+
+				int num = 10;
+				for (int i = 0; i < num; i++) {
+
+					double splitAngle = (Math.PI * 0.125) / (num);
+
+					double extraAngle = 0;
+					if (isFacingLeft()) {
+						extraAngle = Math.PI;
+					}
+
+					Spell multiSpell = new CastSpell(getX(), getY(), 1, spellCounter, splitAngle * i + extraAngle - centerAngleOffset, this);
+					addSpell(multiSpell);
+				}
+
+			}
+
+			// om en spell har lagts till
+			if (spell != null) {
+				addSpell(spell);
+			}
+		}
 	}
 
-	public void pickUpPotion(int numPotions) {
-		DisplayAbility ability = actionBar.getPotionAbility();
+	public void addSpell(Spell spell) {
+		sendCastSpell(spell);
+		activeSpells.add(spell);
+		spellCounter++;
+	}
+
+	public void setStartPosition() {
+		setX(getTeam().getStartX());
+		setY(getTeam().getStartY());
+	}
+
+	public void setNumEnergyPotions(int numPotions) {
+		actionBar.getEnergyPotionAbility().setAmount(numPotions);
+	}
+
+	public void setNumHealthPotions(int numPotions) {
+		actionBar.getHealthPotionAbility().setAmount(numPotions);
+	}
+
+	public void pickUpHealthPotion(int numPotions) {
+		DisplayAbility ability = actionBar.getHealthPotionAbility();
 		int amount = ability.getAmount() + numPotions;
 		ability.setAmount(amount);
+	}
+
+	public void pickUpEnergyPotion(int numPotions) {
+		DisplayAbility ability = actionBar.getEnergyPotionAbility();
+		int amount = ability.getAmount() + numPotions;
+		ability.setAmount(amount);
+	}
+
+	public int getNumEnergyPotions() {
+		return actionBar.getEnergyPotionAbility().getAmount();
+	}
+
+	public int getNumHealthPotions() {
+		return actionBar.getHealthPotionAbility().getAmount();
+	}
+
+	public void removeWood(int numWood) {
+		this.numWood.addAndGet(-numWood);
 	}
 
 	public void pickUpWood(int numWood) {
 		this.numWood.addAndGet(numWood);
 	}
 
+	public void removeMinerals(int numMinerals) {
+		this.numMinerals.addAndGet(-numMinerals);
+	}
+
+	public void pickUpMinerals(int numMinerals) {
+		this.numMinerals.addAndGet(numMinerals);
+	}
+
+	// startar en dash
 	public void startDash() {
-		if (dashReady.get()) {
-			dashReady.set(false);
+		// om man har låst upp dash
+		if (dashUnlocked.get()) {
+			// om den är redo
+			if (dashReady.get()) {
+				dashReady.set(false);
 
-			int mod = 1;
-			if (isFacingLeft()) {
-				mod = -1;
+				int mod = 1;
+				if (isFacingLeft()) {
+					mod = -1;
+				}
+
+				currentDashSpeed = startDashSpeed * mod;
 			}
-			currentDashSpeed = startDashSpeed * mod;
-
 		}
+	}
+
+	public void setNumMinerals(int minerals) {
+		this.numMinerals.set(minerals);
+	}
+
+	public void setNumWood(int wood) {
+		this.numWood.set(wood);
+	}
+
+	public void setCanFly(boolean canFly) {
+		this.canFly = canFly;
 	}
 
 	public AtomicBoolean getDoubleJumpReady() {
@@ -642,18 +928,53 @@ public class YourPlayer extends Player {
 		return lengthFallen;
 	}
 
-	public void usePotion() {
-		int health = getHealth() + 50;
-		setHealth(health);
+	public void useEnergyPotion() {
+		int energy = getEnergy() + 80;
+		setEnergy(energy);
 
 	}
 
-	public AtomicInteger getNumWood() {
+	public void addEnergy(int num) {
+		int energy = getEnergy() + num;
+		setEnergy(energy);
+	}
+
+	public void setEnergy(int energy) {
+		super.setEnergy(energy);
+		sendEnergy();
+	}
+
+	public void useHealthPotion() {
+		int health = getHealth() + 20;
+		setHealth(health);
+	}
+
+	public int getNumWood() {
+		return numWood.get();
+	}
+
+	public int getNumMinerals() {
+		return numMinerals.get();
+	}
+
+	public AtomicInteger getWoodCounter() {
 		return numWood;
+	}
+
+	public AtomicInteger getMineralCounter() {
+		return numMinerals;
 	}
 
 	public double getMovingSpeed() {
 		return currentMovingSpeed;
+	}
+
+	public AtomicBoolean getDashUnlocked() {
+		return dashUnlocked;
+	}
+
+	public AtomicBoolean getDoubleJumpUnlocked() {
+		return doubleJumpUnlocked;
 	}
 
 }

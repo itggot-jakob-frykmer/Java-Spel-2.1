@@ -4,8 +4,8 @@ import java.awt.Rectangle;
 
 public class Platform extends WorldObject {
 
-	public Platform(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	public Platform(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
 	}
 
 	@Override

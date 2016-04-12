@@ -1,5 +1,7 @@
 package client.players.actionbar;
 
+import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,6 +23,10 @@ public class CounterIcon extends Icon {
 	public void paint(Graphics2D g2) {
 		g2.drawImage(getImage(), getX(), getY(), getWidth(), getHeight(), null);
 
+		Font font = new Font("Calibri", Font.BOLD, 25);
+		g2.setFont(font);
+		g2.setColor(Color.WHITE);
+		
 		String text = counter.get() + "";
 		int textHeight = Screen.getTextHeight(g2, text, g2.getFont());
 		int textY = getY() + getHeight() - textHeight / 4;

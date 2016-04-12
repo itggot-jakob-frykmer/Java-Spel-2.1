@@ -5,11 +5,13 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
+import java.net.URL;
 
 import client.Main;
-import client.MapHandler;
 import client.Screen;
 import client.handlers.InputHandler;
+import client.handlers.MapHandler;
+import client.handlers.Sound;
 
 public abstract class LootableWorldObject extends WorldObject {
 
@@ -19,12 +21,22 @@ public abstract class LootableWorldObject extends WorldObject {
 	private int fallingSpeed = 1;
 	private int numItems;
 
-	public LootableWorldObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	URL pickupSound = null;
+
+	// Gör så att inte massa ljud från lootableworldobjects spelar samtidigt när man springer på massa saker på marken
+	static long lastSoundStamp = 0;
+	static long soundDelay = 50;
+
+	public LootableWorldObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
 	}
+
+	public abstract void uniqueUpdate();
 
 	@Override
 	public void update() {
+		uniqueUpdate();
+		
 		Rectangle lootableRect = getCollisionBox();
 		Rectangle mouseRect = new Rectangle(InputHandler.getWorldMouseX(), InputHandler.getWorldMouseY(), 1, 1);
 
@@ -38,9 +50,11 @@ public abstract class LootableWorldObject extends WorldObject {
 		Rectangle playerRect = Main.clientPlayer.getCollisionBox();
 
 		if (lootableRect.intersects(playerRect)) {
-			pickUpItem();
-			MapHandler.sendRemoveObject(this);
-			MapHandler.removeObject(this);
+			if (Main.clientPlayer.isAlive()) {
+				pickUpItem();
+				MapHandler.sendRemoveObject(this);
+				MapHandler.removeObject(this);
+			}
 		}
 
 		falling = true;
@@ -58,12 +72,28 @@ public abstract class LootableWorldObject extends WorldObject {
 
 		}
 
+		// när objektet faller
 		if (falling) {
 			int y = getY() + fallingSpeed;
 			setY(y);
 			setCollisionBox(createCollisionBox()); // uppdaterar colllision box
 		}
 
+	}
+
+	public void playPickupSound() {
+
+		long timeNow = System.currentTimeMillis();
+		long timeSinceLast = timeNow - lastSoundStamp; // hur länge sedan det senaste ljudet spelades från ett lootable world object
+
+		// kollar så att det gått en viss tid innan nästa ljud spelas upp så inte massor av ljud spelas samtidigt när man lootar många saker på marken
+		if (timeSinceLast > soundDelay) {
+			if (pickupSound != null) {
+				Sound.play(pickupSound, getX(), getY(), 1f);
+
+				lastSoundStamp = System.currentTimeMillis(); // sparar vad tiden är nu i en genensam variabel för alla lootableworldobjekts
+			}
+		}
 	}
 
 	@Override
@@ -92,7 +122,6 @@ public abstract class LootableWorldObject extends WorldObject {
 	public void setImageHighlight(Image imgHighlight) {
 
 		Image objectImage = super.getImage();
-
 		BufferedImage bimage = new BufferedImage(objectImage.getWidth(null), objectImage.getHeight(null), BufferedImage.TYPE_INT_ARGB);
 
 		Graphics2D bGr = bimage.createGraphics();
@@ -107,6 +136,10 @@ public abstract class LootableWorldObject extends WorldObject {
 
 		this.imageHighlight = bimage;
 
+	}
+
+	public void setPickupSound(URL url) {
+		this.pickupSound = url;
 	}
 
 	public int getNumItems() {

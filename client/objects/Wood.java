@@ -2,7 +2,6 @@ package client.objects;
 
 import java.awt.Image;
 import java.net.URL;
-import java.util.Random;
 
 import client.Main;
 import client.handlers.Images;
@@ -10,23 +9,17 @@ import client.handlers.Sound;
 
 public class Wood extends LootableWorldObject {
 
-	public int numVary = 5;
-	public int minWood = 2;
+	public static int woodPerStack = 1;
 
-	private URL pickupSound;
-	
-	public Wood(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
-		super(x, y, width, height, paralax, imagePath, objectId);
+	public Wood(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
+		super(x, y, width, height, paralax, imagePath, objectId, versionType);
 		Image img = Images.readImageFromPath("objects/woodHighlight.png");
 		setImageHighlight(img);
 
-		Random ra = new Random();
-		int numWood = minWood + ra.nextInt(numVary);
-		setNumItems(numWood);
+		setNumItems(woodPerStack);
 
-		pickupSound = Sound.readSoundFile("sounds/objects/WoodHandle.wav");
-				
-		
+		URL pickupSound = Sound.readSoundFile("sounds/objects/WoodHandle.wav");
+		setPickupSound(pickupSound);
 	}
 
 	@Override
@@ -36,7 +29,13 @@ public class Wood extends LootableWorldObject {
 
 	@Override
 	public void onRemove() {
-		Sound.play(pickupSound, getX(), getY(), 1f);
+		playPickupSound();
+	}
+
+	@Override
+	public void uniqueUpdate() {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

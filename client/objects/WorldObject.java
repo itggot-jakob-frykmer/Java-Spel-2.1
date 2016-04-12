@@ -1,10 +1,13 @@
 package client.objects;
 
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 
+import client.Screen;
 import client.handlers.Images;
 
+// Detta är moderklassen till alla objekt i världen som skickas får servern när man ansluter.
 public abstract class WorldObject {
 
 	private int x;
@@ -15,9 +18,9 @@ public abstract class WorldObject {
 	private Image image;
 	private Rectangle collisionBox;
 	private int objectId;
-	
+	private int versionType;
 
-	public WorldObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId) {
+	public WorldObject(int x, int y, int width, int height, double paralax, String imagePath, int objectId, int versionType) {
 		this.x = x;
 		this.y = y;
 		this.width = width;
@@ -25,14 +28,26 @@ public abstract class WorldObject {
 		this.paralax = paralax;
 		this.image = Images.readImageFromPath(imagePath);
 		this.objectId = objectId;
+		this.versionType = versionType;
+
 		setCollisionBox(createCollisionBox());
 	}
 
 	public abstract void update();
-	
-	public abstract Rectangle createCollisionBox();
+
+	public Rectangle createCollisionBox() {
+		return new Rectangle(getX(), getY(), getWidth(), getHeight());
+	}
 
 	public abstract void onRemove();
+
+	public void paint(Graphics2D g2d) {
+		g2d.drawImage(getImage(), Screen.fixX(getX(), getParalax()), Screen.fixY(getY(), getParalax()), getWidth(), getHeight(), null);
+	}
+
+	public int getVersionType() {
+		return versionType;
+	}
 	
 	public int getX() {
 		return x;
@@ -66,6 +81,10 @@ public abstract class WorldObject {
 		this.height = height;
 	}
 
+	public void setImage(Image img) {
+		this.image = img;
+	}
+
 	public Image getImage() {
 		return image;
 	}
@@ -81,7 +100,7 @@ public abstract class WorldObject {
 	public double getParalax() {
 		return paralax;
 	}
-	
+
 	public int getObjectId() {
 		return objectId;
 	}
